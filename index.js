@@ -49,7 +49,7 @@ passport.use(new LocalStrategy(
 passport.serializeUser(function (user, done) {
   console.log('user as it is passed through by serializeUser');
   console.log(user);
-  done(null, user.id);
+  done(null, user);
 }); 
  
 passport.deserializeUser(function (user, done) {

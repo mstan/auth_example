@@ -1,0 +1,3 @@
+Reference doc purely for end user to be able to recreate database under db/db.sqlite
+
+CREATE TABLE "users" ("id" INTEGER PRIMARY KEY  NOT NULL , "username" VARCHAR NOT NULL  UNIQUE , "password" VARCHAR NOT NULL )
