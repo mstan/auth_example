@@ -13,6 +13,9 @@ var session = require('express-session');
 //Passport
 
 var LocalStrategy = require('passport-local').Strategy;
+var SteamStrategy = require('./node_modules/passport-steam/lib/passport-steam').Strategy
+
+
 
 //Start express and bind it to app.
 var app = express();
@@ -29,6 +32,30 @@ app.use(morgan('dev'));
 app.use(cookieParser('super secret token'));
 app.use(passport.initialize());
 app.use(passport.session()); //Q: User not defined when session handler is trying to be used
+
+//Custom middleware - built to identify token consistency and when a user is defined or not
+app.use(function (req,res, next) {
+  var passedUser = req.user || null;
+
+  console.log('This page was loaded as: ');
+  console.log(passedUser);
+  next();
+});
+
+//Middleware for Steam auth
+app.get('/auth/steam',
+  passport.authenticate('steam'),
+  function (req, res) {
+    // The request will be redirected to Steam for authentication, so
+    // this function will not be called.
+  });
+
+app.get('/auth/steam/return',
+  passport.authenticate('steam', { failureRedirect: '/login', authStatus: 'login failed' }),
+  function (req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/');
+  });
 
 
 //Let's define what our local passport strategy is
@@ -50,6 +77,32 @@ passport.use(new LocalStrategy(
     });
   }
 ));
+
+//Let's define what our steam strategy is
+
+// Use the SteamStrategy within Passport.
+//   Strategies in passport require a `validate` function, which accept
+//   credentials (in this case, an OpenID identifier and profile), and invoke a
+//   callback with a user object.
+passport.use(new SteamStrategy({
+    returnURL: 'http://localhost:3000/auth/steam/return',
+    realm: 'http://localhost:3000/',
+    apiKey: '<TOKEN>'
+  },
+  function(identifier, profile, done) {
+    // asynchronous verification, for effect...
+    process.nextTick(function () {
+
+      // To keep the example simple, the user's Steam profile is returned to
+      // represent the logged-in user.  In a typical application, you would want
+      // to associate the Steam account with a user record in your database,
+      // and return that user instead.
+      profile.identifier = identifier;
+        return done(null, profile);
+    });
+  }
+));
+
 
 passport.serializeUser(function (user, done) {
   done(null, user);
@@ -97,7 +150,6 @@ app.get('/loginFailure', function (req, res, next) {
 });
  
 app.get('/loginSuccess', function (req, res, next) {
-  console.log(req.user);
 
   res.render('index', { authStatus: 'Successfully authenticated'});
 });
