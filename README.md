@@ -1,0 +1,1 @@
+Bare bones POC of authentication with express 4 & passport local.

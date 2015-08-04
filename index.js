@@ -4,7 +4,11 @@ var ejs = require('ejs');
 var sqlite3 = require('sqlite3');
 var bodyParser = require('body-parser');
 var passport = require('passport');
-var cookieParser = require('cookie-parser'); //Q: Do I need this? I don't know.
+var cookieParser = require('cookie-parser');
+var morgan = require('morgan');
+var session = require('express-session');
+
+
 
 //Passport
 
@@ -19,18 +23,19 @@ var db = new sqlite3.Database(dbFile);
 
 //Middleware
 app.set('view engine' , 'ejs');
-app.use(bodyParser.urlencoded({ extended: false }))
-app.use(cookieParser()); //Q: Do I need this? I don't know.
+app.use(session({secret: 'secret token', resave: true, saveUninitialized: true}));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(morgan('dev'));
+app.use(cookieParser('super secret token'));
 app.use(passport.initialize());
-app.use(passport.session());
+app.use(passport.session()); //Q: User not defined when session handler is trying to be used
+
 
 //Let's define what our local passport strategy is
 passport.use(new LocalStrategy(
   function (username, password, done) {
 
     db.get('SELECT * FROM users WHERE username = ?', username, function (err, user) { //In this case, the "row" is being passed back as user
-      console.log('passport.use middleware function, return the user: '); // Test to see if user exists.   
-      console.log(user);
       //Q: Even if the user is not found, sqlite3 will only ever return null for an error status. Why is this?         
 
       if (err) { return done(err); } //Error case, where database fails. Immediately get out of this.
@@ -47,8 +52,6 @@ passport.use(new LocalStrategy(
 ));
 
 passport.serializeUser(function (user, done) {
-  console.log('user as it is passed through by serializeUser');
-  console.log(user);
   done(null, user);
 }); 
  
@@ -62,15 +65,19 @@ app.use(express.static(__dirname + '/views'));
 
 
 //Routes
-	//Index
+  //Index
 app.get('/', function (req,res) {
-	res.render('index', {authStatus: ''});
+  res.render('index', {authStatus: ''});
 });
 
-	//Login
+  //Login
 app.get('/login', function (req,res) {
 
-	res.render('login');
+  if( req.user !== undefined) {
+    res.redirect('/myProfile');
+  }
+
+  res.render('login', {authStatus: ''});
 });
 
 app.post('/login',
@@ -80,17 +87,31 @@ app.post('/login',
   })
 );
 
+app.get('/logout', function(req, res){
+  req.logout();
+  res.render('index', {authStatus: 'Logged out successfully'});
+});
+
 app.get('/loginFailure', function (req, res, next) {
   res.render('login', { authStatus: 'Failed to authenticate' });
 });
  
 app.get('/loginSuccess', function (req, res, next) {
-  console.log('loginSuccess, return our user by req.user if it exists: '); 
-  console.log(req.user); //Q: This is undefined. Doesn't exist?
-  console.log('loginSuccess, return our user by req.cookies if it exists: ');
-  console.log (req.cookies); //Q: This returns {}. An empty object? Is it not being populated?
+  console.log(req.user);
+
   res.render('index', { authStatus: 'Successfully authenticated'});
 });
+
+  //Profile
+app.get('/myProfile', function (req, res) {
+  var user = req.user;
+
+  if(user === undefined) {
+    res.redirect('/login');
+  }
+
+  res.render('user', {user: user});
+});  
 
 //Listen at port
 app.listen(3000);
