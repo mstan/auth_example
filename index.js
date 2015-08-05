@@ -1,7 +1,7 @@
 //Dependencies
 var express = require('express');
 var ejs = require('ejs');
-var sqlite3 = require('sqlite3');
+var sqlite3 = require('sqlite3').verbose();
 var bodyParser = require('body-parser');
 var passport = require('passport');
 var cookieParser = require('cookie-parser');
@@ -35,7 +35,7 @@ app.use(passport.session()); //Q: User not defined when session handler is tryin
 
 //Custom middleware - built to identify token consistency and when a user is defined or not
 app.use(function (req,res, next) {
-  var passedUser = req.user || null;
+  var passedUser = req.user || 'undefined user';
 
   console.log('This page was loaded as: ');
   console.log(passedUser);
@@ -89,19 +89,49 @@ passport.use(new SteamStrategy({
     realm: 'http://localhost:3000/',
     apiKey: '<TOKEN>'
   },
-  function(identifier, profile, done) {
-    // asynchronous verification, for effect...
-    process.nextTick(function () {
+  function (identifier, profile, done) {
+      //Values to take from Steam
+       var steamid = parseInt(profile._json.steamid);    
+       var password = profile._json.steamid; //filler
+       var username = profile._json.steamid; //filler
+       var passValues = [steamid, password, username];
 
-      // To keep the example simple, the user's Steam profile is returned to
-      // represent the logged-in user.  In a typical application, you would want
-      // to associate the Steam account with a user record in your database,
-      // and return that user instead.
-      profile.identifier = identifier;
-        return done(null, profile);
-    });
-  }
-));
+      //Time to try and look this person up
+      db.get('SELECT * FROM users WHERE steamid = ?', steamid, function (err,user) {
+        //Was there a DB error? Fail out.
+        if(err) { return done(err); }
+
+        //They exist? Okay, return that person.
+        if(user) {
+            console.log('User exists. Lets return them');
+            console.log(user);
+            return done(null, user);
+        }
+
+        //They don't exist? let's make them, then return them
+        if(!user) {
+            //Insert the user into the database. Use the steam ID as placeholders for the username and password for now
+            db.run('INSERT INTO users (username,password,steamid) VALUES(?,?,?)', passValues, function (err) {
+                //Return this user by this.lastID
+                var id = this.lastID;
+
+                //Look up that user we just made by their new ID
+                db.get('SELECT * FROM users WHERE id = ?', id, function (err,user) {
+                  //Was there a DB error? Fail out.
+                  if(err) { return done(err); }
+
+
+                  //Okay. No error. Let's return our user.
+                  if(user) {
+                      return done(null,user);
+                  }
+
+                }); //End db.run('SELECT * FROM suers WHERE id = ?')
+            }); //END db.run('INSERT INTO users...
+        } //END  if(!user) {
+      }); //END db.get('SELECT * FROM USERS WHERE steamid = ?'...
+  } // END function(identifier, profile, done)...
+)); // END passport.use
 
 
 passport.serializeUser(function (user, done) {
